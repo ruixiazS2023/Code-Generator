@@ -25,9 +25,9 @@ public class GenerateCommand implements Callable<Integer> {
     private String outputText = "Sum = ";
     public Integer call() throws Exception {
         MainTemplateConfig mainTemplateConfig = new MainTemplateConfig();
-//        mainTemplateConfig.setLoop(loop);
-//        mainTemplateConfig.setAuthor(author);
-//        mainTemplateConfig.setOutputText(outputText);
+        mainTemplateConfig.setLoop(loop);
+        mainTemplateConfig.setAuthor(author);
+        mainTemplateConfig.setOutputText(outputText);
         MainGenerator.doGenerator(mainTemplateConfig);
         return 0;
     }
