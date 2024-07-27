@@ -1,8 +1,10 @@
-package com.richard.maker.generator;
+package com.richard.maker.generator.main;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.resource.ClassPathResource;
 import cn.hutool.core.util.StrUtil;
+import com.richard.maker.generator.JarGenerator;
+import com.richard.maker.generator.ScriptGenerator;
 import com.richard.maker.generator.file.DynamicFileGenerator;
 import com.richard.maker.meta.Meta;
 import com.richard.maker.meta.MetaManager;
@@ -97,6 +99,19 @@ public class MainGenerator {
         String jarName = String.format("%s-%s-jar-with-dependencies.jar",meta.getName(), meta.getVersion());
         String jarPath = "target/" + jarName;
         ScriptGenerator.doGenerator(shellScriptPath, jarPath);
+
+        // simple generated
+        String distOutputPath = outputPath + "-dist";
+        // copy jar to dist
+        String targetAbsolutePath = distOutputPath +  File.separator + "target";
+        FileUtil.mkdir(targetAbsolutePath);
+        String jarAbsolutePath = outputPath + File.separator + jarPath;
+        FileUtil.copy(jarAbsolutePath, distOutputPath, true);
+        //copy shell script to dist
+        FileUtil.copy(shellScriptPath, distOutputPath, true);
+        //copy .source
+        FileUtil.copy(sourceCopyTargetPath, distOutputPath, true);
+
 
         //generate read.me
         inputFilePath = inputRescourcePath + File.separator + "templates/README.md.ftl";
