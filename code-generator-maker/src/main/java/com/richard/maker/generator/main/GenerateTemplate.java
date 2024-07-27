@@ -42,6 +42,14 @@ public class GenerateTemplate {
         
     }
 
+
+    /**
+     * generate code
+     * @param meta
+     * @param outputPath
+     * @throws IOException
+     * @throws TemplateException
+     */
     protected void generateCode(Meta meta, String outputPath) throws IOException, TemplateException {
         // read resources list
         ClassPathResource resource = new ClassPathResource("");
@@ -114,6 +122,13 @@ public class GenerateTemplate {
         DynamicFileGenerator.doGenerator(inputFilePath, outputFilePath, meta);
     }
 
+    /**
+     * build dist
+     * @param outputPath
+     * @param jarPath
+     * @param shellScriptPath
+     * @param sourceCopyTargetPath
+     */
     protected void buildDist(String outputPath, String jarPath, String shellScriptPath, String sourceCopyTargetPath) {
         // simple generated
         String distOutputPath = outputPath + "-dist";
@@ -128,6 +143,13 @@ public class GenerateTemplate {
         FileUtil.copy(sourceCopyTargetPath, distOutputPath, true);
     }
 
+
+    /**
+     * copy source file
+     * @param meta
+     * @param outputPath
+     * @return
+     */
     protected String copySource(Meta meta, String outputPath) {
         String sourceRootPath = meta.getFileConfig().getSourceRootPath();
         String sourceCopyTargetPath = outputPath + File.separator + ".source";
@@ -135,6 +157,15 @@ public class GenerateTemplate {
         return sourceCopyTargetPath;
     }
 
+    /**
+     * build jar file
+     *
+     * @param meta
+     * @param outputPath
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     protected String buildJar(Meta meta, String outputPath) throws IOException, InterruptedException{
         JarGenerator.doGenerate(outputPath);
         String jarName = String.format("%s-%s-jar-with-dependencies.jar", meta.getName(), meta.getVersion());
