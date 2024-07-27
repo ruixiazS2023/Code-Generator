@@ -1,2 +1,4 @@
-package com.richard.maker.generator.main;public class GenerateTemplate {
+package com.richard.maker.generator.main;
+
+public class GenerateTemplate {
 }

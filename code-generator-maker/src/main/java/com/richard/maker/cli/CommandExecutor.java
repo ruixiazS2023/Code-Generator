@@ -1,8 +1,8 @@
-package com.richard.cli;
+package com.richard.maker.cli;
 
-import com.richard.cli.command.ConfigCommand;
-import com.richard.cli.command.GenerateCommand;
-import com.richard.cli.command.ListCommand;
+import com.richard.maker.cli.command.ConfigCommand;
+import com.richard.maker.cli.command.GenerateCommand;
+import com.richard.maker.cli.command.ListCommand;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 

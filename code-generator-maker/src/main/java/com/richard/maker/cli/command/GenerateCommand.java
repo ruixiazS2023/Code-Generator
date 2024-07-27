@@ -1,15 +1,13 @@
-package com.richard.cli.command;
+package com.richard.maker.cli.command;
 
-import com.richard.model.MainTemplateConfig;
-import freemarker.template.TemplateException;
+import com.richard.maker.model.DataModel;
 import lombok.Data;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Command;
 
-import java.io.IOException;
 import java.util.concurrent.Callable;
 
-import com.richard.generator.MainGenerator;
+import com.richard.maker.generator.file.FileGenerator;
 
 @Command(name = "generate", description = "Generate command",mixinStandardHelpOptions = true)
 @Data
@@ -24,11 +22,11 @@ public class GenerateCommand implements Callable<Integer> {
     @Option(names = {"-o","--outputText"}, arity="0..1", description = "outputText", interactive = true, echo = true)
     private String outputText = "Sum = ";
     public Integer call() throws Exception {
-        MainTemplateConfig mainTemplateConfig = new MainTemplateConfig();
+        DataModel mainTemplateConfig = new DataModel();
         mainTemplateConfig.setLoop(loop);
         mainTemplateConfig.setAuthor(author);
         mainTemplateConfig.setOutputText(outputText);
-        MainGenerator.doGenerator(mainTemplateConfig);
+        FileGenerator.doGenerator(mainTemplateConfig);
         return 0;
     }
 

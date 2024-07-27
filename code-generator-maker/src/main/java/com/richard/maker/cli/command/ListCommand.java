@@ -1,12 +1,10 @@
-package com.richard.cli.command;
+package com.richard.maker.cli.command;
 
 import cn.hutool.core.io.FileUtil;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 @Command(name = "list", description = "List files", mixinStandardHelpOptions = true)
 public class ListCommand implements Runnable {
@@ -19,6 +17,4 @@ public class ListCommand implements Runnable {
             System.out.println(file);
         }
     }
-
-
 }

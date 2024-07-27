@@ -1,4 +1,4 @@
-package com.richard.maker.generator;
+package com.richard.maker.generator.file;
 
 import com.richard.maker.model.DataModel;
 import freemarker.template.TemplateException;

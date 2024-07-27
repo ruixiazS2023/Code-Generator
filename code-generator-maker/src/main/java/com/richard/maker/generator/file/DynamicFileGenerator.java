@@ -1,11 +1,8 @@
-package com.richard.maker.generator;
-
+package com.richard.maker.generator.file;
 import cn.hutool.core.io.FileUtil;
-import com.richard.maker.model.DataModel;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
-
 import java.io.*;
 
 public class DynamicFileGenerator {
