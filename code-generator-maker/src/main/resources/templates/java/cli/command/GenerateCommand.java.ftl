@@ -5,7 +5,7 @@ import lombok.Data;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Command;
 import java.util.concurrent.Callable;
-import ${basePackage}.generator.file.FileGenerator;
+import ${basePackage}.generator.MainGenerator;
 
 @Command(name = "generate", description = "Generate command",mixinStandardHelpOptions = true)
 @Data
@@ -20,7 +20,7 @@ public class GenerateCommand implements Callable<Integer> {
         mainTemplateConfig.setLoop(loop);
         mainTemplateConfig.setAuthor(author);
         mainTemplateConfig.setOutputText(outputText);
-        FileGenerator.doGenerator(mainTemplateConfig);
+        MainGenerator.doGenerator(mainTemplateConfig);
         return 0;
     }
 }

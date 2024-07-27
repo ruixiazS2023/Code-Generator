@@ -1,12 +1,9 @@
 package com.richard.maker.generator;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 
 public class JarGenerator {
-    public static void doGenerate(String projectDir) throws Exception {
+    public static void doGenerate(String projectDir) throws IOException, InterruptedException {
         String MvnCmd = "mvn clean package -DskipTests=true";
         ProcessBuilder processBuilder = new ProcessBuilder(MvnCmd.split(" "));
         processBuilder.directory(new File(projectDir));

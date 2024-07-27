@@ -12,7 +12,7 @@ import java.io.File;
 import java.io.IOException;
 
 public class MainGenerator {
-    public static void main(String[] args) throws TemplateException, IOException {
+    public static void main(String[] args) throws TemplateException, IOException, InterruptedException {
         Meta meta = MetaManager.getMetaObject();
 
         String projectPath = System.getProperty("user.dir");
@@ -85,12 +85,22 @@ public class MainGenerator {
         outputFilePath = outputBaseJavaPackagePath + File.separator + "generator/StaticGenerator.java";
         DynamicFileGenerator.doGenerator(inputFilePath, outputFilePath, meta);
 
+        //generate pom.xml
+        inputFilePath = inputRescourcePath + File.separator + "templates/pom.xml.ftl";
+        outputFilePath = outputPath + File.separator + "pom.xml";
+        DynamicFileGenerator.doGenerator(inputFilePath, outputFilePath, meta);
+
+        JarGenerator.doGenerate(outputPath);
+
         //encapsulate script
         String shellScriptPath = outputPath + File.separator + "generator";
         String jarName = String.format("%s-%s-jar-with-dependencies.jar",meta.getName(), meta.getVersion());
         String jarPath = "target/" + jarName;
         ScriptGenerator.doGenerator(shellScriptPath, jarPath);
 
-
+        //generate read.me
+        inputFilePath = inputRescourcePath + File.separator + "templates/README.md.ftl";
+        outputFilePath = outputPath + File.separator + "README.md";
+        DynamicFileGenerator.doGenerator(inputFilePath, outputFilePath, meta);
     }
 }
