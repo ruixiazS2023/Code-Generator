@@ -11,6 +11,7 @@ import com.richard.maker.meta.enums.ModelTypeEnum;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class MetaValidator {
     public static void doValidateAndFill(Meta meta) {
@@ -28,6 +29,17 @@ public class MetaValidator {
         List<Meta.ModelConfig.ModelInfo> models = modelConfig.getModels();
         if (CollectionUtil.isNotEmpty(models)) {
             for (Meta.ModelConfig.ModelInfo modelInfo : models) {
+                String groupKey = modelInfo.getGroupKey();
+
+                if (StrUtil.isNotEmpty(groupKey)) {
+                    List<Meta.ModelConfig.ModelInfo> subModelInfoList = modelInfo.getModels();
+                    String allArgsStr = subModelInfoList.stream()
+                            .map(subModelInfo -> String.format("\"--%s\"", subModelInfo.getFieldName()))
+                            .collect(Collectors.joining(", "));
+                    modelInfo.setAllArgsStr(allArgsStr);
+                    continue;
+                }
+
                 String fieldName = modelInfo.getFieldName();
                 if (StrUtil.isBlank(fieldName)) {
                     throw new MetaException("please enter fieldName");
@@ -73,6 +85,11 @@ public class MetaValidator {
         List<Meta.FileConfig.FileInfo> files = fileConfig.getFiles();
         if (CollectionUtil.isNotEmpty(files)) {
             for (Meta.FileConfig.FileInfo fileInfo : files) {
+                String type = fileInfo.getType();
+
+                if(FileTypeEnum.GROUP.getValue().equals(type)){
+                    continue;
+                }
 
                 String inputPath = fileInfo.getInputPath();
                 if (StrUtil.isBlank(inputPath)) {
@@ -84,7 +101,6 @@ public class MetaValidator {
                     fileInfo.setOutputPath(inputPath);
                 }
 
-                String type = fileInfo.getType();
                 if (StrUtil.isBlank(type)) {
                     if (StrUtil.isBlank(FileUtil.getSuffix(inputPath))) {
                         fileInfo.setType(FileTypeEnum.DIR.getValue());

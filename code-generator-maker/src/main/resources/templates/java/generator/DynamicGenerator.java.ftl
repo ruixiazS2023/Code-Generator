@@ -7,7 +7,7 @@ import java.io.*;
 
 public class DynamicGenerator {
 
-    public static void doGenerator(String inputPath, String outputPath, Object model) throws IOException, TemplateException {
+    public static void doGenerate(String inputPath, String outputPath, Object model) throws IOException, TemplateException {
         Configuration configuration = new Configuration(Configuration.VERSION_2_3_32);
 
         // set template directory

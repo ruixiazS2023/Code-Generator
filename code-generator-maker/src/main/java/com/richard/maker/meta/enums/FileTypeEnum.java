@@ -2,7 +2,8 @@ package com.richard.maker.meta.enums;
 
 public enum FileTypeEnum {
     DIR("dir","dir"),
-    FILE("file","file");
+    FILE("file","file"),
+    GROUP("group","group");
 
     private final String text;
     private final String value;
