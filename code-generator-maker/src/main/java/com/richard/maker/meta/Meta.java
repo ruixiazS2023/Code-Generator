@@ -38,15 +38,6 @@ public class Meta {
             private String inputPath;
             private String outputPath;
             private String generateType;
-
-//            @NoArgsConstructor
-//            @Data
-//            public static class FilesDTO {
-//                private String inputPath;
-//                private String outputPath;
-//                private String type;
-//                private String generateType;
-//            }
         }
     }
 
@@ -68,16 +59,6 @@ public class Meta {
             private String condition;
             private List<ModelInfo> models;
             private String allArgsStr;
-
-//            @NoArgsConstructor
-//            @Data
-//            public static class ModelsDTO {
-//                private String fieldName;
-//                private String type;
-//                private String description;
-//                private Object defaultValue;
-//                private String abbr;
-//            }
         }
     }
 }
