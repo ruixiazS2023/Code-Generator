@@ -9,6 +9,10 @@ import cn.hutool.json.JSONUtil;
 import com.richard.maker.meta.Meta;
 import com.richard.maker.meta.enums.FileGenerateTypeEnum;
 import com.richard.maker.meta.enums.FileTypeEnum;
+import com.richard.maker.template.enums.FileFilterRangeEnum;
+import com.richard.maker.template.enums.FileFilterRuleEnum;
+import com.richard.maker.template.model.FileFilterConfig;
+import com.richard.maker.template.model.TemplateMakerFileConfig;
 
 import java.io.File;
 import java.nio.file.Paths;
@@ -32,7 +36,11 @@ public class TemplateMaker {
                         .values());
         return newModelList;
     }
-    private static long makeTemplate(Meta newMeta, String originProjectPath, List<String> inputFilePathList, Meta.ModelConfig.ModelInfo modelInfo, String searchStr, Long id){
+    private static long makeTemplate(Meta newMeta,
+                                     String originProjectPath,
+                                     TemplateMakerFileConfig templateMakerFileConfig,
+                                     Meta.ModelConfig.ModelInfo modelInfo,
+                                     String searchStr, Long id){
         if (id == null){
             id = IdUtil.getSnowflakeNextId();
         }
@@ -45,18 +53,21 @@ public class TemplateMaker {
             FileUtil.copy(originProjectPath, templatePath, true);
         }
         String sourceRootPath = templatePath + File.separator + FileUtil.getLastPathEle(Paths.get(originProjectPath)).toString();
+        List<TemplateMakerFileConfig.FileInfoConfig> fileConfigInfoList = templateMakerFileConfig.getFiles();
 
         List<Meta.FileConfig.FileInfo> newFileInfoList = new ArrayList<>();
-        for (String inputFilePath : inputFilePathList){
-            String inputFileAbsolutePath = sourceRootPath + File.separator + inputFilePath;
-            if (FileUtil.isDirectory(inputFileAbsolutePath)){
-                List<File> files = FileUtil.loopFiles(inputFileAbsolutePath);
-                for (File file : files){
-                    Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(modelInfo, searchStr, sourceRootPath, file);
-                    newFileInfoList.add(fileInfo);
-                }
-            } else {
-                Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(modelInfo, searchStr, sourceRootPath, new File(inputFileAbsolutePath));
+        for (TemplateMakerFileConfig.FileInfoConfig fileConfigInfo : fileConfigInfoList){
+            String inputFilePath = fileConfigInfo.getPath();
+
+            // if the path is relative, change to absolute path
+            if(!inputFilePath.startsWith(sourceRootPath)){
+                inputFilePath = sourceRootPath + File.separator + inputFilePath;
+            }
+
+            // get the result after filtering
+            List<File> fileList = FileFilter.doFilter(inputFilePath, fileConfigInfo.getFilterConfigList());
+            for (File file : fileList){
+                Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(modelInfo, searchStr, sourceRootPath, file);
                 newFileInfoList.add(fileInfo);
             }
         }
@@ -95,7 +106,6 @@ public class TemplateMaker {
 
         //output meta json
         FileUtil.writeUtf8String(JSONUtil.toJsonPrettyStr(newMeta), metaOutputPath);
-
         return id;
     }
 
@@ -162,7 +172,25 @@ public class TemplateMaker {
         modelInfo.setFieldName("className");
         modelInfo.setType("String");
         String searchStr = "MainTemplate";
-        long id = makeTemplate(meta, originProjectPath, inputFilePathList, modelInfo, searchStr, 1817865184677670912L);
+
+        // files filter
+
+        TemplateMakerFileConfig templateMakerFileConfig = new TemplateMakerFileConfig();
+        TemplateMakerFileConfig.FileInfoConfig fileInfoConfig1 = new TemplateMakerFileConfig.FileInfoConfig();
+        fileInfoConfig1.setPath(inputFilePath1);
+        List<FileFilterConfig> fileFilterConfigList = new ArrayList<>();
+        FileFilterConfig fileFilterConfig = FileFilterConfig.builder()
+                .range(FileFilterRangeEnum.FILE_NAME.getValue())
+                .rule(FileFilterRuleEnum.CONTAINS.getValue())
+                .value("Base")
+                .build();
+        fileFilterConfigList.add(fileFilterConfig);
+        fileInfoConfig1.setFilterConfigList(fileFilterConfigList);
+
+        TemplateMakerFileConfig.FileInfoConfig fileInfoConfig2 = new TemplateMakerFileConfig.FileInfoConfig();
+        fileInfoConfig2.setPath(inputFilePath2);
+        templateMakerFileConfig.setFiles(Arrays.asList(fileInfoConfig1, fileInfoConfig2));
+        long id = makeTemplate(meta, originProjectPath, templateMakerFileConfig, modelInfo, searchStr, 1817865184677670912L);
         System.out.println("id = " + id);
     }
 }
