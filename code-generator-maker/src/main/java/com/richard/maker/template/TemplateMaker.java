@@ -2,6 +2,7 @@ package com.richard.maker.template;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
@@ -12,35 +13,91 @@ import com.richard.maker.meta.enums.FileTypeEnum;
 import com.richard.maker.template.enums.FileFilterRangeEnum;
 import com.richard.maker.template.enums.FileFilterRuleEnum;
 import com.richard.maker.template.model.FileFilterConfig;
+import com.richard.maker.template.model.TemplateMakerConfig;
 import com.richard.maker.template.model.TemplateMakerFileConfig;
+import com.richard.maker.template.model.TemplateMakerModelConfig;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class TemplateMaker {
     private static List<Meta.FileConfig.FileInfo> distinctFiles(List<Meta.FileConfig.FileInfo> filesList){
-        List<Meta.FileConfig.FileInfo> files = new ArrayList<>(
-                filesList.stream().collect(
-                        Collectors.toMap(Meta.FileConfig.FileInfo::getInputPath, o -> o, (e, r) -> r))
-                        .values());
-        return files;
+        Map<String,List<Meta.FileConfig.FileInfo>> groupKeyFileInfoListMap = filesList
+                .stream()
+                .filter(fileInfo -> StrUtil.isNotBlank(fileInfo.getGroupKey()))
+                .collect(Collectors.groupingBy(Meta.FileConfig.FileInfo::getGroupKey));
+
+        // merge files configuration in the same group
+        Map<String,Meta.FileConfig.FileInfo> groupKeyMergedFileInfoMap = new HashMap<>();
+        for (Map.Entry<String,List<Meta.FileConfig.FileInfo>> entry : groupKeyFileInfoListMap.entrySet()){
+            List<Meta.FileConfig.FileInfo> tempFileList = entry.getValue();
+            List<Meta.FileConfig.FileInfo> newFileInfoList = new ArrayList<>(tempFileList.stream()
+                    .flatMap(fileInfo -> fileInfo.getFiles().stream())
+                    .collect(
+                            Collectors.toMap(Meta.FileConfig.FileInfo::getOutputPath, o -> o, (e, r) -> r)
+                    ).values());
+
+            Meta.FileConfig.FileInfo newFileInfo = CollUtil.getLast(newFileInfoList);
+            newFileInfo.setFiles(newFileInfoList);
+            String groupKey = entry.getKey();
+            groupKeyMergedFileInfoMap.put(groupKey,newFileInfo);
+        }
+
+        // add file group into the result list
+        List<Meta.FileConfig.FileInfo> resultList = new ArrayList<>(groupKeyMergedFileInfoMap.values());
+
+        // add no group file into the result list
+        List<Meta.FileConfig.FileInfo> noGroupFileInfoList = filesList
+                .stream()
+                .filter(fileInfo -> StrUtil.isBlank(fileInfo.getGroupKey()))
+                .collect(Collectors.toList());
+        resultList.addAll(noGroupFileInfoList.stream()
+                .collect(
+                        Collectors.toMap(Meta.FileConfig.FileInfo::getInputPath, o -> o, (e, r) -> r)
+                ).values());
+        return resultList;
     }
     private static List<Meta.ModelConfig.ModelInfo> distinctModels(List<Meta.ModelConfig.ModelInfo> modelsList){
-        List<Meta.ModelConfig.ModelInfo> newModelList = new ArrayList<>(
-                modelsList.stream().collect(
-                                Collectors.toMap(Meta.ModelConfig.ModelInfo::getFieldName, o -> o, (e, r) -> r))
-                        .values());
-        return newModelList;
+        Map<String,List<Meta.ModelConfig.ModelInfo>> groupKeyModelListMap = modelsList.stream()
+                .filter(modelInfo -> StrUtil.isNotBlank(modelInfo.getGroupKey()))
+                .collect(Collectors.groupingBy(Meta.ModelConfig.ModelInfo::getGroupKey));
+
+        // merge models configuration in the same group
+        Map<String,Meta.ModelConfig.ModelInfo> groupKeyMergedModelInfoMap = new HashMap<>();
+        for (Map.Entry<String,List<Meta.ModelConfig.ModelInfo>> entry : groupKeyModelListMap.entrySet()){
+            List<Meta.ModelConfig.ModelInfo> tempModelList = entry.getValue();
+            List<Meta.ModelConfig.ModelInfo> newModelInfoList = new ArrayList<>(tempModelList.stream()
+                    .flatMap(ModelInfo -> ModelInfo.getModels().stream())
+                    .collect(
+                            Collectors.toMap(Meta.ModelConfig.ModelInfo::getFieldName, o -> o, (e, r) -> r)
+                    ).values());
+
+            Meta.ModelConfig.ModelInfo newModelInfo = CollUtil.getLast(newModelInfoList);
+            newModelInfo.setModels(newModelInfoList);
+            String groupKey = entry.getKey();
+            groupKeyMergedModelInfoMap.put(groupKey,newModelInfo);
+        }
+        // add model group into the result list
+        List<Meta.ModelConfig.ModelInfo> resultList = new ArrayList<>(groupKeyMergedModelInfoMap.values());
+
+        // add no group models into the result list
+        List<Meta.ModelConfig.ModelInfo> noGroupModelInfoList = modelsList
+                .stream()
+                .filter(modelInfo -> StrUtil.isBlank(modelInfo.getGroupKey()))
+                .collect(Collectors.toList());
+        resultList.addAll(noGroupModelInfoList.stream()
+                .collect(
+                        Collectors.toMap(Meta.ModelConfig.ModelInfo::getFieldName, o -> o, (e, r) -> r)
+                ).values());
+        return resultList;
     }
     private static long makeTemplate(Meta newMeta,
                                      String originProjectPath,
                                      TemplateMakerFileConfig templateMakerFileConfig,
-                                     Meta.ModelConfig.ModelInfo modelInfo,
-                                     String searchStr, Long id){
+                                     TemplateMakerModelConfig templateMakerModelConfig,
+                                     Long id){
         if (id == null){
             id = IdUtil.getSnowflakeNextId();
         }
@@ -66,14 +123,66 @@ public class TemplateMaker {
 
             // get the result after filtering
             List<File> fileList = FileFilter.doFilter(inputFilePath, fileConfigInfo.getFilterConfigList());
+
+            // filter the file with .ftl
+            fileList = fileList.stream().filter(file -> file.getName().endsWith(".ftl")).collect(Collectors.toList());
+
             for (File file : fileList){
-                Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(modelInfo, searchStr, sourceRootPath, file);
+                Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(templateMakerModelConfig, sourceRootPath, file);
                 newFileInfoList.add(fileInfo);
             }
         }
 
+        // if it is a group
+        TemplateMakerFileConfig.FileGroupConfig fileGroupConfig = templateMakerFileConfig.getFileGroupConfig();
+        if (fileGroupConfig != null){
+            String condition = fileGroupConfig.getCondition();
+            String groupKey = fileGroupConfig.getGroupKey();
+            String groupName = fileGroupConfig.getGroupName();
+
+            // add group config
+            Meta.FileConfig.FileInfo groupFileInfo = new Meta.FileConfig.FileInfo();
+            groupFileInfo.setType(FileTypeEnum.GROUP.getValue());
+            groupFileInfo.setCondition(condition);
+            groupFileInfo.setGroupKey(groupKey);
+            groupFileInfo.setGroupName(groupName);
+
+            //put files in the same group
+            groupFileInfo.setFiles(newFileInfoList);
+            newFileInfoList = new ArrayList<>();
+            newFileInfoList.add(groupFileInfo);
+        }
+
+        // deal with the model Info
+        List<TemplateMakerModelConfig.ModelInfoConfig> models = templateMakerModelConfig.getModels();
+
+        // transfer the TemplateMakerModelConfig.ModelInfoConfig to Meta.ModelConfig.ModelInfo
+        List<Meta.ModelConfig.ModelInfo> inputModelInfoList = models.stream()
+                .map(modelInfoConfig -> {
+                    Meta.ModelConfig.ModelInfo modelInfo = new Meta.ModelConfig.ModelInfo();
+                    BeanUtil.copyProperties(modelInfoConfig, modelInfo);
+                    return modelInfo;
+                }).collect(Collectors.toList());
+
+        List<Meta.ModelConfig.ModelInfo> newModelInfoList = new ArrayList<>();
+        TemplateMakerModelConfig.ModelGroupConfig modelGroupConfig = templateMakerModelConfig.getModelGroupConfig();
+        if (modelGroupConfig != null){
+            String condition = modelGroupConfig.getCondition();
+            String groupKey = modelGroupConfig.getGroupKey();
+            String groupName = modelGroupConfig.getGroupName();
+            Meta.ModelConfig.ModelInfo groupModelInfo = new Meta.ModelConfig.ModelInfo();
+            groupModelInfo.setCondition(condition);
+            groupModelInfo.setGroupKey(groupKey);
+            groupModelInfo.setGroupName(groupName);
+
+            groupModelInfo.setModels(inputModelInfoList);
+            newModelInfoList.add(groupModelInfo);
+        } else {
+            newModelInfoList.addAll(inputModelInfoList);
+        }
+
         //generate meta json
-        String metaOutputPath = sourceRootPath + File.separator + "meta.json";
+        String metaOutputPath = templatePath + File.separator + "meta.json";
         if (FileUtil.exist(metaOutputPath)){
             Meta oldMeta = JSONUtil.toBean(FileUtil.readUtf8String(metaOutputPath), Meta.class);
             BeanUtil.copyProperties(newMeta, oldMeta, CopyOptions.create().ignoreNullValue());
@@ -83,7 +192,7 @@ public class TemplateMaker {
             List<Meta.FileConfig.FileInfo> files = newMeta.getFileConfig().getFiles();
             files.addAll(newFileInfoList);
             List<Meta.ModelConfig.ModelInfo> modelInfos = newMeta.getModelConfig().getModels();
-            modelInfos.add(modelInfo);
+            modelInfos.addAll(newModelInfoList);
 
             // meta distinct
             newMeta.getFileConfig().setFiles(distinctFiles(files));
@@ -101,7 +210,7 @@ public class TemplateMaker {
             newMeta.setModelConfig(modelConfig);
             List<Meta.ModelConfig.ModelInfo> modelInfos = new ArrayList<>();
             modelConfig.setModels(modelInfos);
-            modelInfos.add(modelInfo);
+            modelInfos.addAll(newModelInfoList);
         }
 
         //output meta json
@@ -109,36 +218,66 @@ public class TemplateMaker {
         return id;
     }
 
-    private static Meta.FileConfig.FileInfo makeFileTemplate(Meta.ModelConfig.ModelInfo modelInfo, String searchStr,String sourceRootPath,File inputFile){
+    public static long makeTemplate(TemplateMakerConfig templateMakerConfig){
+        Meta meta = templateMakerConfig.getMeta();
+        String originProjectPath = templateMakerConfig.getOriginProjectPath();
+        TemplateMakerModelConfig templateMakerModelConfig = templateMakerConfig.getModelConfig();
+        TemplateMakerFileConfig templateMakerFileConfig = templateMakerConfig.getFileConfig();
+        Long id = templateMakerConfig.getId();
+
+        return makeTemplate(meta, originProjectPath, templateMakerFileConfig, templateMakerModelConfig, id);
+    }
+
+    private static Meta.FileConfig.FileInfo makeFileTemplate(TemplateMakerModelConfig templateMakerModelConfig,
+                                                             String sourceRootPath,
+                                                             File inputFile){
         String fileInputAbsolutePath = inputFile.getAbsolutePath();
         String fileOutputAbsolutePath = fileInputAbsolutePath + ".ftl";
 
         String fileInputPath = fileInputAbsolutePath.replace(sourceRootPath + "/", "");
         String fileOutputPath = fileInputPath + ".ftl";
         String fileContent;
-        if(FileUtil.exist(fileInputAbsolutePath)){
+
+        boolean hasTemplate = FileUtil.exist(fileInputAbsolutePath);
+        if ( hasTemplate){
             fileContent = FileUtil.readUtf8String(fileOutputAbsolutePath);
         }
         else{
             fileContent = FileUtil.readUtf8String(fileInputAbsolutePath);
         }
 
-        // replace the Sum string by ${}
-        String replacement = String.format("${%s}",modelInfo.getFieldName());
-        String newFileContent = StrUtil.replace(fileContent,searchStr, replacement);
+        TemplateMakerModelConfig.ModelGroupConfig modelGroupConfig = templateMakerModelConfig.getModelGroupConfig();
+        String newFileContent = fileContent;
+        String replacement;
+        for (TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig : templateMakerModelConfig.getModels()){
+            if (modelGroupConfig == null){
+                replacement = String.format("${%s}",modelInfoConfig.getFieldName());
+            } else {
+                String groupKey = modelGroupConfig.getGroupKey();
+                replacement = String.format("${%s.%s}",groupKey,modelInfoConfig.getFieldName());
+            }
+            newFileContent = StrUtil.replace(newFileContent,modelInfoConfig.getReplaceText(), replacement);
+        }
 
         //set file info
         Meta.FileConfig.FileInfo fileInfo = new Meta.FileConfig.FileInfo();
-        fileInfo.setInputPath(fileInputPath);
-        fileInfo.setOutputPath(fileOutputPath);
+        fileInfo.setInputPath(fileOutputPath);
+        fileInfo.setOutputPath(fileInputPath);
         fileInfo.setType(FileTypeEnum.FILE.getValue());
+        fileInfo.setGenerateType(FileGenerateTypeEnum.DYNAMIC.getValue());
 
-        if(newFileContent.equals(fileContent)){
-            fileInfo.setOutputPath(fileInputPath);
-            fileInfo.setGenerateType(FileGenerateTypeEnum.STATIC.getValue());
+        // whether change the content
+        boolean comtentEquals = newFileContent.equals(fileContent);
+
+        if(!hasTemplate){
+            if(comtentEquals) {
+                fileInfo.setInputPath(fileInputPath);
+                fileInfo.setGenerateType(FileGenerateTypeEnum.STATIC.getValue());
+            } else {
+                FileUtil.writeUtf8String(newFileContent, fileOutputAbsolutePath);
+            }
         }
-        else{
-            fileInfo.setGenerateType(FileGenerateTypeEnum.DYNAMIC.getValue());
+        else if(!comtentEquals){
             //output template file
             FileUtil.writeUtf8String(newFileContent, fileOutputAbsolutePath);
         }
@@ -150,7 +289,6 @@ public class TemplateMaker {
         String originProjectPath = new File(projectPath).getParent() + File.separator + "code-generator-demo-projects/acm-template";
         String inputFilePath1 = "src/com/richard/acm/MainTemplate.java";
         String inputFilePath2 = "src/com/richard/acm/MainTemplate2.java";
-        List<String> inputFilePathList = Arrays.asList(inputFilePath1, inputFilePath2);
 
         // copy directory
         String name = "acm-template-generator";
@@ -168,13 +306,37 @@ public class TemplateMaker {
 //        long id = makeTemplate(meta, originProjectPath, inputFilePath, modelInfo, searchStr, null);
 //        System.out.println("id = " + id);
 
+
+        TemplateMakerModelConfig templateMakerModelConfig = new TemplateMakerModelConfig();
+        //group configuration
+        TemplateMakerModelConfig.ModelGroupConfig modelGroupConfig = new TemplateMakerModelConfig.ModelGroupConfig();
+        modelGroupConfig.setGroupKey("mysql");
+        modelGroupConfig.setGroupName("mysql configuration");
+        templateMakerModelConfig.setModelGroupConfig(modelGroupConfig);
+
+        // model configuration
+        TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig1 = new TemplateMakerModelConfig.ModelInfoConfig();
+        modelInfoConfig1.setFieldName("url");
+        modelInfoConfig1.setType("String");
+        modelInfoConfig1.setDefaultValue("jdbc:mysql://localhost:3306/test");
+        modelInfoConfig1.setReplaceText("jdbc:mysql://localhost:3306/test");
+
+        TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig2 = new TemplateMakerModelConfig.ModelInfoConfig();
+        modelInfoConfig2.setFieldName("username");
+        modelInfoConfig2.setType("String");
+        modelInfoConfig2.setDefaultValue("root");
+        modelInfoConfig2.setReplaceText("root");
+
+        List<TemplateMakerModelConfig.ModelInfoConfig> modelInfoConfigList = Arrays.asList(modelInfoConfig1, modelInfoConfig2);
+        templateMakerModelConfig.setModels(modelInfoConfigList);
+
+
         Meta.ModelConfig.ModelInfo modelInfo = new Meta.ModelConfig.ModelInfo();
         modelInfo.setFieldName("className");
         modelInfo.setType("String");
         String searchStr = "MainTemplate";
 
         // files filter
-
         TemplateMakerFileConfig templateMakerFileConfig = new TemplateMakerFileConfig();
         TemplateMakerFileConfig.FileInfoConfig fileInfoConfig1 = new TemplateMakerFileConfig.FileInfoConfig();
         fileInfoConfig1.setPath(inputFilePath1);
@@ -190,7 +352,15 @@ public class TemplateMaker {
         TemplateMakerFileConfig.FileInfoConfig fileInfoConfig2 = new TemplateMakerFileConfig.FileInfoConfig();
         fileInfoConfig2.setPath(inputFilePath2);
         templateMakerFileConfig.setFiles(Arrays.asList(fileInfoConfig1, fileInfoConfig2));
-        long id = makeTemplate(meta, originProjectPath, templateMakerFileConfig, modelInfo, searchStr, 1817865184677670912L);
+
+        // group configuration
+        TemplateMakerFileConfig.FileGroupConfig fileGroupConfig = new TemplateMakerFileConfig.FileGroupConfig();
+        fileGroupConfig.setCondition("outputText");
+        fileGroupConfig.setGroupKey("test");
+        fileGroupConfig.setGroupName("testGroup");
+        templateMakerFileConfig.setFileGroupConfig(fileGroupConfig);
+
+        long id = makeTemplate(meta, originProjectPath, templateMakerFileConfig, templateMakerModelConfig, 1817865184677670912L);
         System.out.println("id = " + id);
     }
 }
