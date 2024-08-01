@@ -105,6 +105,7 @@ public class TemplateMaker {
         String projectPath = System.getProperty("user.dir");
         String templateDirPath = projectPath + File.separator + ".temp";
         String templatePath = templateDirPath + File.separator + id;
+
         if (!FileUtil.exist(templatePath)) {
             FileUtil.mkdir(templatePath);
             FileUtil.copy(originProjectPath, templatePath, true);
@@ -219,7 +220,9 @@ public class TemplateMaker {
             List<File> fileList = FileFilter.doFilter(inputFilePath, fileConfigInfo.getFilterConfigList());
 
             // filter the file with .ftl
-            fileList = fileList.stream().filter(file -> file.getName().endsWith(".ftl")).collect(Collectors.toList());
+            fileList = fileList.stream()
+                    .filter(file -> !file.getAbsolutePath().endsWith(".ftl"))
+                    .collect(Collectors.toList());
 
             for (File file : fileList){
                 Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(templateMakerModelConfig, sourceRootPath, file);
@@ -269,7 +272,7 @@ public class TemplateMaker {
         String fileOutputPath = fileInputPath + ".ftl";
         String fileContent;
 
-        boolean hasTemplate = FileUtil.exist(fileInputAbsolutePath);
+        boolean hasTemplate = FileUtil.exist(fileOutputAbsolutePath);
         if ( hasTemplate){
             fileContent = FileUtil.readUtf8String(fileOutputAbsolutePath);
         }
@@ -298,17 +301,17 @@ public class TemplateMaker {
         fileInfo.setGenerateType(FileGenerateTypeEnum.DYNAMIC.getValue());
 
         // whether change the content
-        boolean comtentEquals = newFileContent.equals(fileContent);
+        boolean contentEquals = newFileContent.equals(fileContent);
 
         if(!hasTemplate){
-            if(comtentEquals) {
+            if(contentEquals) {
                 fileInfo.setInputPath(fileInputPath);
                 fileInfo.setGenerateType(FileGenerateTypeEnum.STATIC.getValue());
             } else {
                 FileUtil.writeUtf8String(newFileContent, fileOutputAbsolutePath);
             }
         }
-        else if(!comtentEquals){
+        else if(!contentEquals){
             //output template file
             FileUtil.writeUtf8String(newFileContent, fileOutputAbsolutePath);
         }
@@ -317,26 +320,16 @@ public class TemplateMaker {
     public static void main(String[] args) {
         //set origin file path
         String projectPath = System.getProperty("user.dir");
-        String originProjectPath = new File(projectPath).getParent() + File.separator + "code-generator-demo-projects/acm-template";
-        String inputFilePath1 = "src/com/richard/acm/MainTemplate.java";
-        String inputFilePath2 = "src/com/richard/acm/MainTemplate2.java";
+        String originProjectPath = new File(projectPath).getParent() + File.separator + "code-generator-demo-projects/springboot-init-master";
+        String inputFilePath1 = "src/main/resources/application.yml";
+        String inputFilePath2 = "src/main/resources/application.yml";
 
         // copy directory
-        String name = "acm-template-generator";
-        String description = "ACM template generator example";
+        String name = "springboot-init--generator";
+        String description = "springboot init";
         Meta meta = new Meta();
         meta.setName(name);
         meta.setDescription(description);
-
-        // set model configuration
-//        Meta.ModelConfig.ModelInfo modelInfo = new Meta.ModelConfig.ModelInfo();
-//        modelInfo.setFieldName("outputText");
-//        modelInfo.setType("String");
-//        modelInfo.setDefaultValue("sum = ");
-//        String searchStr = "Sum: ";
-//        long id = makeTemplate(meta, originProjectPath, inputFilePath, modelInfo, searchStr, null);
-//        System.out.println("id = " + id);
-
 
         TemplateMakerModelConfig templateMakerModelConfig = new TemplateMakerModelConfig();
         //group configuration
@@ -349,8 +342,8 @@ public class TemplateMaker {
         TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig1 = new TemplateMakerModelConfig.ModelInfoConfig();
         modelInfoConfig1.setFieldName("url");
         modelInfoConfig1.setType("String");
-        modelInfoConfig1.setDefaultValue("jdbc:mysql://localhost:3306/test");
-        modelInfoConfig1.setReplaceText("jdbc:mysql://localhost:3306/test");
+        modelInfoConfig1.setDefaultValue("jdbc:mysql://localhost:3306/my_db");
+        modelInfoConfig1.setReplaceText("jdbc:mysql://localhost:3306/my_db");
 
         TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig2 = new TemplateMakerModelConfig.ModelInfoConfig();
         modelInfoConfig2.setFieldName("username");
@@ -362,10 +355,10 @@ public class TemplateMaker {
         templateMakerModelConfig.setModels(modelInfoConfigList);
 
 
-        Meta.ModelConfig.ModelInfo modelInfo = new Meta.ModelConfig.ModelInfo();
-        modelInfo.setFieldName("className");
-        modelInfo.setType("String");
-        String searchStr = "MainTemplate";
+//        Meta.ModelConfig.ModelInfo modelInfo = new Meta.ModelConfig.ModelInfo();
+//        modelInfo.setFieldName("className");
+//        modelInfo.setType("String");
+        String searchStr = "BaseResponse";
 
         // files filter
         TemplateMakerFileConfig templateMakerFileConfig = new TemplateMakerFileConfig();
@@ -382,7 +375,7 @@ public class TemplateMaker {
 
         TemplateMakerFileConfig.FileInfoConfig fileInfoConfig2 = new TemplateMakerFileConfig.FileInfoConfig();
         fileInfoConfig2.setPath(inputFilePath2);
-        templateMakerFileConfig.setFiles(Arrays.asList(fileInfoConfig1, fileInfoConfig2));
+        templateMakerFileConfig.setFiles(Arrays.asList(fileInfoConfig1,fileInfoConfig2));
 
         // group configuration
         TemplateMakerFileConfig.FileGroupConfig fileGroupConfig = new TemplateMakerFileConfig.FileGroupConfig();
