@@ -12,13 +12,9 @@ import com.richard.maker.meta.enums.FileGenerateTypeEnum;
 import com.richard.maker.meta.enums.FileTypeEnum;
 import com.richard.maker.template.enums.FileFilterRangeEnum;
 import com.richard.maker.template.enums.FileFilterRuleEnum;
-import com.richard.maker.template.model.FileFilterConfig;
-import com.richard.maker.template.model.TemplateMakerConfig;
-import com.richard.maker.template.model.TemplateMakerFileConfig;
-import com.richard.maker.template.model.TemplateMakerModelConfig;
+import com.richard.maker.template.model.*;
 
 import java.io.File;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -97,6 +93,7 @@ public class TemplateMaker {
                                      String originProjectPath,
                                      TemplateMakerFileConfig templateMakerFileConfig,
                                      TemplateMakerModelConfig templateMakerModelConfig,
+                                     TemplateMakerOutputConfig templateMakerOutputConfig,
                                      Long id){
         if (id == null){
             id = IdUtil.getSnowflakeNextId();
@@ -155,6 +152,10 @@ public class TemplateMaker {
             modelInfos.addAll(newModelInfoList);
         }
 
+        if(templateMakerOutputConfig.isRemoveGroupFilesFromRoot()){
+            List<Meta.FileConfig.FileInfo> fileInfoList = newMeta.getFileConfig().getFiles();
+            newMeta.getFileConfig().setFiles(TemplateMakerUtils.removeFroupFilesFromRoot(fileInfoList));
+        }
         //output meta json
         FileUtil.writeUtf8String(JSONUtil.toJsonPrettyStr(newMeta), metaOutputPath);
         return id;
@@ -180,14 +181,11 @@ public class TemplateMaker {
 
         TemplateMakerModelConfig.ModelGroupConfig modelGroupConfig = templateMakerModelConfig.getModelGroupConfig();
         if (modelGroupConfig != null){
-            String condition = modelGroupConfig.getCondition();
-            String groupKey = modelGroupConfig.getGroupKey();
-            String groupName = modelGroupConfig.getGroupName();
+            // copy variables
             Meta.ModelConfig.ModelInfo groupModelInfo = new Meta.ModelConfig.ModelInfo();
-            groupModelInfo.setCondition(condition);
-            groupModelInfo.setGroupKey(groupKey);
-            groupModelInfo.setGroupName(groupName);
+            BeanUtil.copyProperties(modelGroupConfig, groupModelInfo);
 
+            //together the model in the same group
             groupModelInfo.setModels(inputModelInfoList);
             newModelInfoList.add(groupModelInfo);
         } else {
@@ -225,7 +223,7 @@ public class TemplateMaker {
                     .collect(Collectors.toList());
 
             for (File file : fileList){
-                Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(templateMakerModelConfig, sourceRootPath, file);
+                Meta.FileConfig.FileInfo fileInfo = makeFileTemplate(templateMakerModelConfig, sourceRootPath, file, fileConfigInfo);
                 newFileInfoList.add(fileInfo);
             }
         }
@@ -257,14 +255,16 @@ public class TemplateMaker {
         String originProjectPath = templateMakerConfig.getOriginProjectPath();
         TemplateMakerModelConfig templateMakerModelConfig = templateMakerConfig.getModelConfig();
         TemplateMakerFileConfig templateMakerFileConfig = templateMakerConfig.getFileConfig();
+        TemplateMakerOutputConfig templateMakerOutputConfig = templateMakerConfig.getOutputConfig();
         Long id = templateMakerConfig.getId();
 
-        return makeTemplate(meta, originProjectPath, templateMakerFileConfig, templateMakerModelConfig, id);
+        return makeTemplate(meta, originProjectPath, templateMakerFileConfig, templateMakerModelConfig, templateMakerOutputConfig, id);
     }
 
     private static Meta.FileConfig.FileInfo makeFileTemplate(TemplateMakerModelConfig templateMakerModelConfig,
                                                              String sourceRootPath,
-                                                             File inputFile){
+                                                             File inputFile,
+                                                             TemplateMakerFileConfig.FileInfoConfig fileInfoConfig){
         String fileInputAbsolutePath = inputFile.getAbsolutePath();
         String fileOutputAbsolutePath = fileInputAbsolutePath + ".ftl";
 
@@ -296,6 +296,7 @@ public class TemplateMaker {
         //set file info
         Meta.FileConfig.FileInfo fileInfo = new Meta.FileConfig.FileInfo();
         fileInfo.setInputPath(fileOutputPath);
+        fileInfo.setCondition(fileInfoConfig.getCondition());
         fileInfo.setOutputPath(fileInputPath);
         fileInfo.setType(FileTypeEnum.FILE.getValue());
         fileInfo.setGenerateType(FileGenerateTypeEnum.DYNAMIC.getValue());
@@ -317,74 +318,71 @@ public class TemplateMaker {
         }
         return fileInfo;
     }
-    public static void main(String[] args) {
-        //set origin file path
-        String projectPath = System.getProperty("user.dir");
-        String originProjectPath = new File(projectPath).getParent() + File.separator + "code-generator-demo-projects/springboot-init-master";
-        String inputFilePath1 = "src/main/resources/application.yml";
-        String inputFilePath2 = "src/main/resources/application.yml";
-
-        // copy directory
-        String name = "springboot-init--generator";
-        String description = "springboot init";
-        Meta meta = new Meta();
-        meta.setName(name);
-        meta.setDescription(description);
-
-        TemplateMakerModelConfig templateMakerModelConfig = new TemplateMakerModelConfig();
-        //group configuration
-        TemplateMakerModelConfig.ModelGroupConfig modelGroupConfig = new TemplateMakerModelConfig.ModelGroupConfig();
-        modelGroupConfig.setGroupKey("mysql");
-        modelGroupConfig.setGroupName("mysql configuration");
-        templateMakerModelConfig.setModelGroupConfig(modelGroupConfig);
-
-        // model configuration
-        TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig1 = new TemplateMakerModelConfig.ModelInfoConfig();
-        modelInfoConfig1.setFieldName("url");
-        modelInfoConfig1.setType("String");
-        modelInfoConfig1.setDefaultValue("jdbc:mysql://localhost:3306/my_db");
-        modelInfoConfig1.setReplaceText("jdbc:mysql://localhost:3306/my_db");
-
-        TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig2 = new TemplateMakerModelConfig.ModelInfoConfig();
-        modelInfoConfig2.setFieldName("username");
-        modelInfoConfig2.setType("String");
-        modelInfoConfig2.setDefaultValue("root");
-        modelInfoConfig2.setReplaceText("root");
-
-        List<TemplateMakerModelConfig.ModelInfoConfig> modelInfoConfigList = Arrays.asList(modelInfoConfig1, modelInfoConfig2);
-        templateMakerModelConfig.setModels(modelInfoConfigList);
-
-
-//        Meta.ModelConfig.ModelInfo modelInfo = new Meta.ModelConfig.ModelInfo();
-//        modelInfo.setFieldName("className");
-//        modelInfo.setType("String");
-        String searchStr = "BaseResponse";
-
-        // files filter
-        TemplateMakerFileConfig templateMakerFileConfig = new TemplateMakerFileConfig();
-        TemplateMakerFileConfig.FileInfoConfig fileInfoConfig1 = new TemplateMakerFileConfig.FileInfoConfig();
-        fileInfoConfig1.setPath(inputFilePath1);
-        List<FileFilterConfig> fileFilterConfigList = new ArrayList<>();
-        FileFilterConfig fileFilterConfig = FileFilterConfig.builder()
-                .range(FileFilterRangeEnum.FILE_NAME.getValue())
-                .rule(FileFilterRuleEnum.CONTAINS.getValue())
-                .value("Base")
-                .build();
-        fileFilterConfigList.add(fileFilterConfig);
-        fileInfoConfig1.setFilterConfigList(fileFilterConfigList);
-
-        TemplateMakerFileConfig.FileInfoConfig fileInfoConfig2 = new TemplateMakerFileConfig.FileInfoConfig();
-        fileInfoConfig2.setPath(inputFilePath2);
-        templateMakerFileConfig.setFiles(Arrays.asList(fileInfoConfig1,fileInfoConfig2));
-
-        // group configuration
-        TemplateMakerFileConfig.FileGroupConfig fileGroupConfig = new TemplateMakerFileConfig.FileGroupConfig();
-        fileGroupConfig.setCondition("outputText");
-        fileGroupConfig.setGroupKey("test");
-        fileGroupConfig.setGroupName("testGroup");
-        templateMakerFileConfig.setFileGroupConfig(fileGroupConfig);
-
-        long id = makeTemplate(meta, originProjectPath, templateMakerFileConfig, templateMakerModelConfig, 1817865184677670912L);
-        System.out.println("id = " + id);
-    }
+//    public static void main(String[] args) {
+//        //set origin file path
+//        String projectPath = System.getProperty("user.dir");
+//        String originProjectPath = new File(projectPath).getParent() + File.separator + "code-generator-demo-projects/springboot-init-master";
+//        String inputFilePath1 = "src/main/resources/application.yml";
+//        String inputFilePath2 = "src/main/resources/application.yml";
+//
+//        // copy directory
+//        String name = "springboot-init--generator";
+//        String description = "springboot init";
+//        Meta meta = new Meta();
+//        meta.setName(name);
+//        meta.setDescription(description);
+//
+//        TemplateMakerModelConfig templateMakerModelConfig = new TemplateMakerModelConfig();
+//        //group configuration
+//        TemplateMakerModelConfig.ModelGroupConfig modelGroupConfig = new TemplateMakerModelConfig.ModelGroupConfig();
+//        modelGroupConfig.setGroupKey("mysql");
+//        modelGroupConfig.setGroupName("mysql configuration");
+//        templateMakerModelConfig.setModelGroupConfig(modelGroupConfig);
+//
+//        // model configuration
+//        TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig1 = new TemplateMakerModelConfig.ModelInfoConfig();
+//        modelInfoConfig1.setFieldName("url");
+//        modelInfoConfig1.setType("String");
+//        modelInfoConfig1.setDefaultValue("jdbc:mysql://localhost:3306/my_db");
+//        modelInfoConfig1.setReplaceText("jdbc:mysql://localhost:3306/my_db");
+//
+//        TemplateMakerModelConfig.ModelInfoConfig modelInfoConfig2 = new TemplateMakerModelConfig.ModelInfoConfig();
+//        modelInfoConfig2.setFieldName("username");
+//        modelInfoConfig2.setType("String");
+//        modelInfoConfig2.setDefaultValue("root");
+//        modelInfoConfig2.setReplaceText("root");
+//
+//        List<TemplateMakerModelConfig.ModelInfoConfig> modelInfoConfigList = Arrays.asList(modelInfoConfig1, modelInfoConfig2);
+//        templateMakerModelConfig.setModels(modelInfoConfigList);
+//
+//        // files filter
+//        TemplateMakerFileConfig templateMakerFileConfig = new TemplateMakerFileConfig();
+//        TemplateMakerFileConfig.FileInfoConfig fileInfoConfig1 = new TemplateMakerFileConfig.FileInfoConfig();
+//        fileInfoConfig1.setPath(inputFilePath1);
+//        List<FileFilterConfig> fileFilterConfigList = new ArrayList<>();
+//        FileFilterConfig fileFilterConfig = FileFilterConfig.builder()
+//                .range(FileFilterRangeEnum.FILE_NAME.getValue())
+//                .rule(FileFilterRuleEnum.CONTAINS.getValue())
+//                .value("Base")
+//                .build();
+//        fileFilterConfigList.add(fileFilterConfig);
+//        fileInfoConfig1.setFilterConfigList(fileFilterConfigList);
+//
+//        TemplateMakerFileConfig.FileInfoConfig fileInfoConfig2 = new TemplateMakerFileConfig.FileInfoConfig();
+//        fileInfoConfig2.setPath(inputFilePath2);
+//        templateMakerFileConfig.setFiles(Arrays.asList(fileInfoConfig1,fileInfoConfig2));
+//
+//        // group configuration
+//        TemplateMakerFileConfig.FileGroupConfig fileGroupConfig = new TemplateMakerFileConfig.FileGroupConfig();
+//        fileGroupConfig.setCondition("outputText");
+//        fileGroupConfig.setGroupKey("test");
+//        fileGroupConfig.setGroupName("testGroup");
+//        templateMakerFileConfig.setFileGroupConfig(fileGroupConfig);
+//
+//        TemplateMakerOutputConfig templateMakerOutputConfig = new TemplateMakerOutputConfig();
+//        templateMakerOutputConfig.setRemoveGroupFilesFromRoot(true);
+//
+//        long id = makeTemplate(meta, originProjectPath, templateMakerFileConfig, templateMakerModelConfig,templateMakerOutputConfig, 1817865184677670912L);
+//        System.out.println("id = " + id);
+//    }
 }
